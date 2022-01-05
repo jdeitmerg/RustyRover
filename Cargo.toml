@@ -1,5 +1,4 @@
 [package]
-# TODO(1) fix `authors` and `name` if you didn't use `cargo-generate`
 authors = ["Jonas Deitmerg <jonasdeitmerg@aim.com>"]
 name = "bluefruit-le"
 edition = "2018"
@@ -19,8 +18,7 @@ cortex-m-rt = "0.7.0"
 defmt = "0.3.0"
 defmt-rtt = "0.3.0"
 panic-probe = { version = "0.3.0", features = ["print-defmt"] }
-# TODO(4) enter your HAL here
-# some-hal = "1.2.3"
+nrf52832-hal = "0.14.1"
 
 [dev-dependencies]
 defmt-test = "0.3.0"
