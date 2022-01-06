@@ -10,7 +10,16 @@ mod app {
     use nrf52832_hal::{self as hal, gpio::*, prelude::*};
 
     const F_CPU_HZ: u32 = 64_000_000;
-    #[monotonic(binds = SysTick, default = true)]
+    /* The NRF52832 has NVIC_PRIO_BITS = 3, so the RTIC task priorities
+     * range from 1..8.
+     * For the SoftDevice we have to reserve NVIC priorities 0, 1 and 4,
+     * which correspond to RTIC priorities 8, 7, 4. We may only use RTIC
+     * priorities 1,2,3,5,6 for our tasks!
+     * If these don't suffice any more at some point, we can probably also
+     * use priority 4, as it can't preemt a SoftDevice handler running at
+     * the same priority.
+     */
+    #[monotonic(binds = SysTick, default = true, priority = 6)]
     type DwtMono = DwtSystick<F_CPU_HZ>;
 
     #[shared]
