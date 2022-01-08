@@ -1,2 +1,5 @@
 /target
 Cargo.lock
+softdevice_s112
+.vscode/launch.json
+.gdb_history

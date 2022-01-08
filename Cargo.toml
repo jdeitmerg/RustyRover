@@ -22,6 +22,7 @@ panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 nrf52832-hal = "0.14.1"
 cortex-m-rtic = "1.0.0"
 dwt-systick-monotonic = "1.0.0"
+nrf-softdevice-s112 = {version = "0.1.1", default-features = false, features = [], path = "nrf-softdevice/nrf-softdevice-s112"}
 
 [dev-dependencies]
 defmt-test = "0.3.0"
@@ -30,10 +31,10 @@ defmt-test = "0.3.0"
 [profile.dev]
 codegen-units = 1
 debug = 2
-debug-assertions = true # <-
+debug-assertions = true
 incremental = false
-opt-level = 3 # <-
-overflow-checks = true # <-
+# opt-level = 3 # <-
+overflow-checks = true
 
 # cargo test
 [profile.test]
