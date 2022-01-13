@@ -23,6 +23,7 @@ nrf52832-hal = "0.14.1"
 cortex-m-rtic = "1.0.0"
 dwt-systick-monotonic = "1.0.0"
 nrf-softdevice-s112 = {version = "0.1.1", default-features = false, features = [], path = "nrf-softdevice/nrf-softdevice-s112"}
+aligned = "0.4.0"
 
 [dev-dependencies]
 defmt-test = "0.3.0"

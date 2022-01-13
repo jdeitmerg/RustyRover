@@ -14,6 +14,7 @@ use rtic::app;
  */
 #[app(device = nrf52832_hal::pac, dispatchers = [SWI0_EGU0])]
 mod app {
+    use aligned::{Aligned, A4};
     use dwt_systick_monotonic::{fugit::ExtU32, DwtSystick};
     use nrf52832_hal::{self as hal, gpio::*, prelude::*};
     use nrf_softdevice_s112 as sd;
@@ -177,11 +178,6 @@ mod app {
             }
         }
 
-        let peer_addr: sd::ble_gap_addr_t = sd::ble_gap_addr_t {
-            // add_id_peer is only valid for peer addresses. Which this is not.
-            _bitfield_1: sd::ble_gap_addr_t::new_bitfield_1(0, sd::BLE_GAP_ADDR_TYPE_PUBLIC as u8),
-            addr: gap_addr.addr,
-        };
         let mut adv_handle = sd::BLE_GAP_ADV_SET_HANDLE_NOT_SET as u8;
         // advertisement type: BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED
         let adv_params: sd::ble_gap_adv_params_t = sd::ble_gap_adv_params_t {
@@ -302,6 +298,46 @@ mod app {
 
     #[task(binds = SWI2_EGU2)]
     fn softdev_event_notify(_: softdev_event_notify::Context) {
-        defmt::println!("SoftDevice notification!")
+        defmt::println!("SoftDevice notification!");
+        //let mut evt_buf: Aligned<A4, [u8; 128]> = Aligned([0u8; 128]);
+        //let mut buf_len: u16 = evt_buf.len().try_into().unwrap();
+        let mut evt: Aligned<A4, sd::ble_evt_t> = Aligned(sd::ble_evt_t {
+            header: sd::ble_evt_hdr_t {
+                evt_id: 0,
+                evt_len: 0,
+            },
+            evt: sd::ble_evt_t__bindgen_ty_1 {
+                common_evt: Default::default(),
+                gap_evt: Default::default(),
+                gattc_evt: Default::default(),
+                gatts_evt: Default::default(),
+                bindgen_union_field: Default::default(),
+            },
+        });
+        debug_assert!(sd::BLE_EVT_PTR_ALIGNMENT <= 4);
+        let evt_buf = &mut evt as *mut Aligned<A4, sd::ble_evt_t> as *mut u8;
+        let mut buf_len: u16 = core::mem::size_of::<sd::ble_evt_t>() as u16;
+        loop {
+            match unsafe { sd::sd_ble_evt_get(evt_buf, &mut buf_len) } {
+                sd::NRF_SUCCESS => {
+                    defmt::println!(
+                        "sd_ble_evt_get: Event read!\n\
+                      \x20   header:\n\
+                      \x20       evt_id: {}\n\
+                      \x20       evt_len: {}",
+                        evt.header.evt_id,
+                        evt.header.evt_len
+                    );
+                    // ToDo: Dispatch handlers depending of evt_id range. See BLE_*_EVT_BASE and BLE_*_EVT_LAST
+                }
+                sd::NRF_ERROR_INVALID_ADDR => defmt::println!("sd_ble_evt_get: Invalid address!"),
+                sd::NRF_ERROR_NOT_FOUND => {
+                    //defmt::println!("sd_ble_evt_get: No more events!");
+                    break;
+                }
+                sd::NRF_ERROR_DATA_SIZE => defmt::println!("sd_ble_evt_get: Buffer too small!"),
+                _ => defmt::println!("sd_ble_evt_get: Invalid return value!"),
+            }
+        }
     }
 }
