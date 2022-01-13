@@ -1,8 +1,8 @@
 #![no_main]
 #![no_std]
 
-use bluefruit_le as _; // global logger + panicking-behavior + memory layout
 use rtic::app;
+use rusty_rover as _; // global logger + panicking-behavior + memory layout
 
 /* Of the software interrupts, the SoftDevice reserves
  * SWI1 for radio notifications if enabled

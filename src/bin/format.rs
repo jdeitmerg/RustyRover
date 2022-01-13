@@ -1,8 +1,8 @@
 #![no_main]
 #![no_std]
 
-use bluefruit_le as _; // global logger + panicking-behavior + memory layout
-use defmt::Format; // <- derive attribute
+use defmt::Format;
+use rusty_rover as _; // global logger + panicking-behavior + memory layout // <- derive attribute
 
 #[derive(Format)]
 struct S1<T> {
@@ -25,5 +25,5 @@ fn main() -> ! {
     let x = 42;
     defmt::println!("x={=u8}", x);
 
-    bluefruit_le::exit()
+    rusty_rover::exit()
 }

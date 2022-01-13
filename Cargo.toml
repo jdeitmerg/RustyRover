@@ -1,6 +1,6 @@
 [package]
 authors = ["Jonas Deitmerg <jonasdeitmerg@aim.com>"]
-name = "bluefruit-le"
+name = "rusty-rover"
 edition = "2021"
 rust-version = "1.57"
 version = "0.1.0"

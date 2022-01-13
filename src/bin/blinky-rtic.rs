@@ -1,8 +1,8 @@
 #![no_main]
 #![no_std]
 
-use bluefruit_le as _; // global logger + panicking-behavior + memory layout
 use rtic::app;
+use rusty_rover as _; // global logger + panicking-behavior + memory layout
 
 #[app(device = nrf52832_hal::pac, dispatchers = [SWI0_EGU0])]
 mod app {

@@ -1,8 +1,8 @@
 #![no_main]
 #![no_std]
 
-use bluefruit_le as _; // global logger + panicking-behavior + memory layout
 use nrf52832_hal::{self as hal, gpio::Level, prelude::*};
+use rusty_rover as _; // global logger + panicking-behavior + memory layout
 
 #[cortex_m_rt::entry]
 fn main() -> ! {

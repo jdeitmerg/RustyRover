@@ -1,7 +1,7 @@
 #![no_main]
 #![no_std]
 
-use bluefruit_le as _; // global logger + panicking-behavior + memory layout
+use rusty_rover as _; // global logger + panicking-behavior + memory layout
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -9,5 +9,5 @@ fn main() -> ! {
     let frequency: u32 = 276;
     defmt::println!("FREQUENCY: {0=0..7}, MAP: {0=8..9}", frequency);
 
-    bluefruit_le::exit()
+    rusty_rover::exit()
 }

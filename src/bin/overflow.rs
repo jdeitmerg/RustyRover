@@ -1,12 +1,12 @@
 #![no_main]
 #![no_std]
 
-use bluefruit_le as _; // global logger + panicking-behavior + memory layout
+use rusty_rover as _; // global logger + panicking-behavior + memory layout
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
     ack(10, 10);
-    bluefruit_le::exit()
+    rusty_rover::exit()
 }
 
 fn ack(m: u32, n: u32) -> u32 {
