@@ -17,8 +17,7 @@ learning about
 
 The softdevice and RTIC are set up to nicely play together. BLE advertisement
 works and the basics of event handling are implemented. Everything is in a
-proof-of-concept state. See
-[src/bin/soft-device-rtic.rs](src/bin/soft-device-rtic.rs) for details.
+proof-of-concept state.
 
 ## Setup
 
@@ -36,10 +35,12 @@ $ probe-rs-cli erase --chip nrf52832
 $ probe-rs-cli download --chip nrf52832 --format hex s112_nrf52_7.3.0_softdevice.hex
 ```
 
+* Connect to target using debug probe supported by probe-rs.
+
 ## Running
 
 ```bash
-$ cargo rb soft-device-rtic
+$ cargo run
 ```
 
 ## Notes
