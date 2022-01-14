@@ -194,8 +194,6 @@ pub fn init() -> bool {
 
 pub fn handle_evt_notify() {
     defmt::println!("SoftDevice notification!");
-    //let mut evt_buf: Aligned<A4, [u8; 128]> = Aligned([0u8; 128]);
-    //let mut buf_len: u16 = evt_buf.len().try_into().unwrap();
     let mut evt: Aligned<A4, sd::ble_evt_t> = Aligned(sd::ble_evt_t {
         header: sd::ble_evt_hdr_t {
             evt_id: 0,
@@ -210,7 +208,8 @@ pub fn handle_evt_notify() {
         },
     });
     debug_assert!(sd::BLE_EVT_PTR_ALIGNMENT <= 4);
-    let evt_buf = &mut evt as *mut Aligned<A4, sd::ble_evt_t> as *mut u8;
+    // * dereferences Aligned<ble_evt_t> to get ble_evt_t
+    let evt_buf = &mut *evt as *mut sd::ble_evt_t as *mut u8;
     let mut buf_len: u16 = core::mem::size_of::<sd::ble_evt_t>() as u16;
     loop {
         match unsafe { sd::sd_ble_evt_get(evt_buf, &mut buf_len) } {
@@ -223,7 +222,8 @@ pub fn handle_evt_notify() {
                     evt.header.evt_id,
                     evt.header.evt_len
                 );
-                // ToDo: Dispatch handlers depending of evt_id range. See BLE_*_EVT_BASE and BLE_*_EVT_LAST
+                // * dereferences Aligned<ble_evt_t> to get ble_evt_t
+                dispatch_event(&*evt);
             }
             sd::NRF_ERROR_INVALID_ADDR => defmt::println!("sd_ble_evt_get: Invalid address!"),
             sd::NRF_ERROR_NOT_FOUND => {
@@ -235,3 +235,31 @@ pub fn handle_evt_notify() {
         }
     }
 }
+
+fn dispatch_event(evt: &sd::ble_evt_t) {
+    let evt_id = evt.header.evt_id as u32;
+    match evt_id {
+        sd::BLE_EVT_BASE..=sd::BLE_EVT_LAST => {
+            let common_evt = unsafe { evt.evt.common_evt.as_ref() };
+            handle_common_evt(evt_id, common_evt);
+        }
+        sd::BLE_GAP_EVT_BASE..=sd::BLE_GAP_EVT_LAST => {
+            let gap_evt = unsafe { evt.evt.gap_evt.as_ref() };
+            handle_gap_evt(evt_id, gap_evt);
+        }
+        sd::BLE_GATTC_EVT_BASE..=sd::BLE_GATTC_EVT_LAST => {
+            let gattc_evt = unsafe { evt.evt.gattc_evt.as_ref() };
+            handle_gattc_evt(evt_id, gattc_evt);
+        }
+        sd::BLE_GATTS_EVT_BASE..=sd::BLE_GATTS_EVT_LAST => {
+            let gatts_evt = unsafe { evt.evt.gatts_evt.as_ref() };
+            handle_gatts_evt(evt_id, gatts_evt);
+        }
+        _ => defmt::println!("dispatch_event: Invalid event ID: {}", evt_id),
+    }
+}
+
+fn handle_common_evt(_evt_id: u32, _evt: &sd::ble_common_evt_t) {}
+fn handle_gap_evt(_evt_id: u32, _evt: &sd::ble_gap_evt_t) {}
+fn handle_gatts_evt(_evt_id: u32, _evt: &sd::ble_gatts_evt_t) {}
+fn handle_gattc_evt(_evt_id: u32, _evt: &sd::ble_gattc_evt_t) {}
