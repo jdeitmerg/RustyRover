@@ -44,7 +44,7 @@ mod app {
 
     #[init]
     fn init(cx: init::Context) -> (Shared, Local, init::Monotonics) {
-        defmt::println!("Initializing...");
+        defmt::info!("HW initialization...");
         let _hw_clocks = hal::clocks::Clocks::new(cx.device.CLOCK).enable_ext_hfosc();
 
         let mut dcb = cx.core.DCB;
@@ -60,6 +60,8 @@ mod app {
         let port0 = hal::gpio::p0::Parts::new(cx.device.P0);
         let led1 = port0.p0_17.into_push_pull_output(Level::Low);
         let led2 = port0.p0_19.into_push_pull_output(Level::Low);
+
+        defmt::info!("HW initialization finished.");
 
         /* Note we cannot initialize the SoftDevice here, as we need SVC
          * interrupts to work for that. However, interrupts are disabled
@@ -89,8 +91,6 @@ mod app {
 
     #[idle]
     fn idle(_: idle::Context) -> ! {
-        defmt::println!("idle task");
-
         /* Initialize SoftDevice here, as interrupts are enabled so we
          * can use SVC.
          */

@@ -40,6 +40,7 @@ $ probe-rs-cli download --chip nrf52832 --format hex s112_nrf52_7.3.0_softdevice
 ## Running
 
 ```bash
+$ export DEFMT_LOG=debug
 $ cargo run
 ```
 

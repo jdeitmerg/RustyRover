@@ -4,7 +4,7 @@ use nrf_softdevice_s112 as sd;
 
 #[no_mangle]
 extern "C" fn nrf_fault_handler(id: u32, pc: u32, info: u32) {
-    defmt::println!(
+    defmt::error!(
         "nrf hard fault! ID: 0x{:08x}, PC: 0x{:08x}, INFO: 0x{:08x}",
         id,
         pc,
@@ -13,7 +13,6 @@ extern "C" fn nrf_fault_handler(id: u32, pc: u32, info: u32) {
 }
 
 pub fn init() -> bool {
-    defmt::println!("Enabling SoftDevice...");
     const SD_CLK_CONF: sd::nrf_clock_lf_cfg_t = sd::nrf_clock_lf_cfg_t {
         source: sd::NRF_CLOCK_LF_SRC_XTAL as u8,
         rc_ctiv: 0,
@@ -22,31 +21,29 @@ pub fn init() -> bool {
     };
     let retval = unsafe { sd::sd_softdevice_enable(&SD_CLK_CONF, Some(nrf_fault_handler)) };
     match retval {
-        sd::NRF_SUCCESS => defmt::println!("Success!"),
+        sd::NRF_SUCCESS => defmt::debug!("SoftDevice enabled successfully!"),
         _ => {
-            defmt::println!("Error!");
+            defmt::error!("Failed to eanble SoftDevice!");
             return false;
         }
     };
 
     let mut app_ram_base: u32 = 0x20000000 + 0x1AE0;
-    defmt::println!("Enabling BLE stack...");
-
     match unsafe { sd::sd_ble_enable(&mut app_ram_base) } {
-        sd::NRF_SUCCESS => defmt::println!("Success!"),
+        sd::NRF_SUCCESS => defmt::debug!("BLE stack enabled successfully!"),
         _ => {
-            defmt::println!("Error!");
+            defmt::error!("Failed to enable BLE stack!");
             return false;
         }
     };
-    defmt::println!("App RAM base address: 0x{:08x}", app_ram_base);
+    defmt::info!("App RAM base address: 0x{:08x}", app_ram_base);
 
     let mut gap_addr = sd::ble_gap_addr_t {
         _bitfield_1: sd::__BindgenBitfieldUnit::default(),
         addr: [0u8; 6],
     };
     match unsafe { sd::sd_ble_gap_addr_get(&mut gap_addr) } {
-        sd::NRF_SUCCESS => defmt::println!(
+        sd::NRF_SUCCESS => defmt::debug!(
             "BLE MAC addr: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
             gap_addr.addr[0],
             gap_addr.addr[1],
@@ -55,13 +52,13 @@ pub fn init() -> bool {
             gap_addr.addr[4],
             gap_addr.addr[5],
         ),
-        _ => defmt::println!("Error getting BLE MAC addr!"),
+        _ => defmt::error!("Error getting BLE MAC addr!"),
     }
 
     let mut appearance = 0u16;
     match unsafe { sd::sd_ble_gap_appearance_get(&mut appearance) } {
-        sd::NRF_SUCCESS => defmt::println!("GAP appearance: {}", appearance),
-        _ => defmt::println!("Error getting GAP appearance!"),
+        sd::NRF_SUCCESS => defmt::debug!("GAP appearance: {}", appearance),
+        _ => defmt::error!("Error getting GAP appearance!"),
     }
 
     #[rustfmt::skip]
@@ -73,9 +70,9 @@ pub fn init() -> bool {
     match unsafe {
         sd::sd_ble_gap_device_name_set(&conn_sec_mode, &dev_name[0], dev_name.len() as u16)
     } {
-        sd::NRF_SUCCESS => defmt::println!("Device name set successfully."),
+        sd::NRF_SUCCESS => defmt::debug!("Device name set successfully."),
         _ => {
-            defmt::println!("Error setting device name!");
+            defmt::error!("Error setting device name!");
             return false;
         }
     }
@@ -137,63 +134,60 @@ pub fn init() -> bool {
         sd::sd_ble_gap_adv_set_configure(&mut adv_handle, &adv_data_handle, &adv_params)
     } {
         sd::NRF_SUCCESS => {
-            defmt::println!("Advertisement config successful!");
+            defmt::debug!("Advertisement config successful!");
             config_ok = true
         }
         sd::NRF_ERROR_INVALID_LENGTH => {
-            defmt::println!("Advertisement config failed: NRF_ERROR_INVALID_LENGTH")
+            defmt::error!("Advertisement config failed: NRF_ERROR_INVALID_LENGTH")
         }
         sd::NRF_ERROR_NOT_SUPPORTED => {
-            defmt::println!("Advertisement config failed: NRF_ERROR_NOT_SUPPORTED")
+            defmt::error!("Advertisement config failed: NRF_ERROR_NOT_SUPPORTED")
         }
         sd::NRF_ERROR_NO_MEM => {
-            defmt::println!("Advertisement config failed: NRF_ERROR_NO_MEM")
+            defmt::error!("Advertisement config failed: NRF_ERROR_NO_MEM")
         }
         sd::BLE_ERROR_GAP_UUID_LIST_MISMATCH => {
-            defmt::println!("Advertisement config fail0x00,ed: BLE_ERROR_GAP_UUID_LIST_MISMATCH")
+            defmt::error!("Advertisement config fail0x00,ed: BLE_ERROR_GAP_UUID_LIST_MISMATCH")
         }
         sd::NRF_ERROR_INVALID_ADDR => {
-            defmt::println!("Advertisement config failed: NRF_ERROR_INVALID_ADDR")
+            defmt::error!("Advertisement config failed: NRF_ERROR_INVALID_ADDR")
         }
         sd::NRF_ERROR_INVALID_PARAM => {
-            defmt::println!("Advertisement config failed: NRF_ERROR_INVALID_PARAM")
+            defmt::error!("Advertisement config failed: NRF_ERROR_INVALID_PARAM")
         }
         sd::BLE_ERROR_GAP_INVALID_BLE_ADDR => {
-            defmt::println!("Advertisement config failed: BLE_ERROR_GAP_INVALID_BLE_ADDR")
+            defmt::error!("Advertisement config failed: BLE_ERROR_GAP_INVALID_BLE_ADDR")
         }
         sd::NRF_ERROR_INVALID_STATE => {
-            defmt::println!("Advertisement config failed: NRF_ERROR_INVALID_STATE")
+            defmt::error!("Advertisement config failed: NRF_ERROR_INVALID_STATE")
         }
         sd::BLE_ERROR_GAP_DISCOVERABLE_WITH_WHITELIST => {
-            defmt::println!(
-                "Advertisement config failed: BLE_ERROR_GAP_DISCOVERABLE_WITH_WHITELIST"
-            )
+            defmt::error!("Advertisement config failed: BLE_ERROR_GAP_DISCOVERABLE_WITH_WHITELIST")
         }
         sd::BLE_ERROR_INVALID_ADV_HANDLE => {
-            defmt::println!("Advertisement config failed: BLE_ERROR_INVALID_ADV_HANDLE")
+            defmt::error!("Advertisement config failed: BLE_ERROR_INVALID_ADV_HANDLE")
         }
         sd::NRF_ERROR_INVALID_FLAGS => {
-            defmt::println!("Advertisement config failed: NRF_ERROR_INVALID_FLAGS")
+            defmt::error!("Advertisement config failed: NRF_ERROR_INVALID_FLAGS")
         }
         sd::NRF_ERROR_INVALID_DATA => {
-            defmt::println!("Advertisement config failed: NRF_ERROR_INVALID_DATA")
+            defmt::error!("Advertisement config failed: NRF_ERROR_INVALID_DATA")
         }
-        other => defmt::println!("Advertisement config failed: {}", other),
+        other => defmt::error!("Advertisement config failed: {}", other),
     }
     if !config_ok {
         return false;
     }
 
     match unsafe { sd::sd_ble_gap_adv_start(adv_handle, sd::BLE_CONN_CFG_TAG_DEFAULT as u8) } {
-        sd::NRF_SUCCESS => defmt::println!("Advertisement started successfully!"),
-        _ => defmt::println!("Error starting advertisement!"),
+        sd::NRF_SUCCESS => defmt::debug!("Advertisement started successfully!"),
+        _ => defmt::error!("Error starting advertisement!"),
     }
 
     true
 }
 
 pub fn handle_evt_notify() {
-    defmt::println!("SoftDevice notification!");
     let mut evt: Aligned<A4, sd::ble_evt_t> = Aligned(sd::ble_evt_t {
         header: sd::ble_evt_hdr_t {
             evt_id: 0,
@@ -214,24 +208,16 @@ pub fn handle_evt_notify() {
     loop {
         match unsafe { sd::sd_ble_evt_get(evt_buf, &mut buf_len) } {
             sd::NRF_SUCCESS => {
-                defmt::println!(
-                    "sd_ble_evt_get: Event read!\n\
-                      \x20   header:\n\
-                      \x20       evt_id: {}\n\
-                      \x20       evt_len: {}",
-                    evt.header.evt_id,
-                    evt.header.evt_len
-                );
                 // * dereferences Aligned<ble_evt_t> to get ble_evt_t
                 dispatch_event(&*evt);
             }
-            sd::NRF_ERROR_INVALID_ADDR => defmt::println!("sd_ble_evt_get: Invalid address!"),
+            sd::NRF_ERROR_INVALID_ADDR => defmt::error!("sd_ble_evt_get: Invalid address!"),
             sd::NRF_ERROR_NOT_FOUND => {
-                //defmt::println!("sd_ble_evt_get: No more events!");
+                // Queue is empty, no more events to process
                 break;
             }
-            sd::NRF_ERROR_DATA_SIZE => defmt::println!("sd_ble_evt_get: Buffer too small!"),
-            _ => defmt::println!("sd_ble_evt_get: Invalid return value!"),
+            sd::NRF_ERROR_DATA_SIZE => defmt::error!("sd_ble_evt_get: Buffer too small!"),
+            _ => defmt::error!("sd_ble_evt_get: Invalid return value!"),
         }
     }
 }
@@ -255,11 +241,95 @@ fn dispatch_event(evt: &sd::ble_evt_t) {
             let gatts_evt = unsafe { evt.evt.gatts_evt.as_ref() };
             handle_gatts_evt(evt_id, gatts_evt);
         }
-        _ => defmt::println!("dispatch_event: Invalid event ID: {}", evt_id),
+        _ => defmt::error!("dispatch_event: Invalid event ID: {}", evt_id),
     }
 }
 
-fn handle_common_evt(_evt_id: u32, _evt: &sd::ble_common_evt_t) {}
-fn handle_gap_evt(_evt_id: u32, _evt: &sd::ble_gap_evt_t) {}
-fn handle_gatts_evt(_evt_id: u32, _evt: &sd::ble_gatts_evt_t) {}
-fn handle_gattc_evt(_evt_id: u32, _evt: &sd::ble_gattc_evt_t) {}
+fn handle_common_evt(evt_id: u32, _evt: &sd::ble_common_evt_t) {
+    match evt_id {
+        sd::BLE_COMMON_EVTS_BLE_EVT_USER_MEM_REQUEST => {
+            defmt::error!("Common event: Memory request not handled!")
+        }
+        sd::BLE_COMMON_EVTS_BLE_EVT_USER_MEM_RELEASE => {
+            defmt::error!("Common event: Memory release not handled!")
+        }
+        _ => defmt::error!("Common event: Invalid event ID: {}!", evt_id),
+    }
+}
+fn handle_gap_evt(evt_id: u32, _evt: &sd::ble_gap_evt_t) {
+    match evt_id {
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_ADV_SET_TERMINATED => {
+            defmt::debug!("GAP event: Advertising set terminated.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_AUTH_KEY_REQUEST => {
+            defmt::debug!("GAP event: Authentication key request.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_AUTH_STATUS => {
+            defmt::debug!("GAP event: Authentication completed.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_CONNECTED => defmt::info!("GAP event: Connected."),
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_CONN_PARAM_UPDATE => {
+            defmt::debug!("GAP event: Connection parameters updated.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_CONN_SEC_UPDATE => {
+            defmt::debug!("GAP event: Connection security updated.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_DISCONNECTED => defmt::info!("GAP event: Disconnected."),
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_KEY_PRESSED => defmt::debug!("GAP event: Key pressed."),
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_PASSKEY_DISPLAY => {
+            defmt::debug!("GAP event: Passkey display request.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_PHY_UPDATE => {
+            defmt::debug!("GAP event: PHY update completed.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_PHY_UPDATE_REQUEST => {
+            defmt::debug!("GAP event: PHY update request.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_RSSI_CHANGED => defmt::debug!("GAP event: RSSI report."),
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_SCAN_REQ_REPORT => {
+            //defmt::debug!("GAP event: Scan request report.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_SEC_INFO_REQUEST => {
+            defmt::debug!("GAP event: Security information request.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_SEC_PARAMS_REQUEST => {
+            defmt::debug!("GAP event: Security parameter request.")
+        }
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_SEC_REQUEST => defmt::debug!("GAP event: Security request."),
+        sd::BLE_GAP_EVTS_BLE_GAP_EVT_TIMEOUT => defmt::debug!("GAP event: Timeout."),
+        _ => defmt::error!("GAP event: Invalid event ID: {}!", evt_id),
+    }
+}
+fn handle_gatts_evt(evt_id: u32, _evt: &sd::ble_gatts_evt_t) {
+    match evt_id {
+        sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST => {
+            defmt::debug!("GATTS event: MTU exchange request.")
+        }
+        sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_HVC => {
+            defmt::debug!("GATTS event: Handle value confirmation.")
+        }
+        sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_HVN_TX_COMPLETE => {
+            defmt::debug!("GATTS event: Handle value notification completed.")
+        }
+        sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST => {
+            defmt::debug!("GATTS event: RW authorization request.")
+        }
+        sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_SC_CONFIRM => {
+            defmt::debug!("GATTS event: Service change confirmation.")
+        }
+        sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_SYS_ATTR_MISSING => {
+            defmt::debug!("GATTS event: Pending access to persistent system attribute.")
+        }
+        sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_TIMEOUT => defmt::error!("GATTS event: Response timeout."),
+        sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_WRITE => {
+            defmt::debug!("GATTS event: Write operation performed.")
+        }
+        _ => defmt::error!("GATTS event: Invalid event ID: {}!", evt_id),
+    }
+}
+fn handle_gattc_evt(evt_id: u32, _evt: &sd::ble_gattc_evt_t) {
+    defmt::error!(
+        "GATTC event handling not implemented! Ignoring ID: {}",
+        evt_id
+    );
+}
