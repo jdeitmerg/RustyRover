@@ -16,7 +16,7 @@ use rusty_rover as _; // global logger + panicking-behavior + memory layout
 mod app {
     use dwt_systick_monotonic::{fugit::ExtU32, DwtSystick};
     use nrf52832_hal::{self as hal, gpio::*, prelude::*};
-    use rusty_rover::soft_device;
+    use rusty_rover::soft_device::SoftDevice;
 
     const F_CPU_HZ: u32 = 64_000_000;
     /* The NRF52832 has NVIC_PRIO_BITS = 3, so the RTIC task priorities
@@ -35,7 +35,9 @@ mod app {
     type DwtMono = DwtSystick<F_CPU_HZ>;
 
     #[shared]
-    struct Shared {}
+    struct Shared {
+        sd: SoftDevice,
+    }
     #[local]
     struct Local {
         led1: p0::P0_17<Output<PushPull>>,
@@ -67,11 +69,14 @@ mod app {
          * interrupts to work for that. However, interrupts are disabled
          * right now because of how RTIC works.
          */
+        init_soft_device::spawn().unwrap();
 
         blink::spawn_after(500u32.millis()).unwrap();
 
         (
-            Shared {},
+            Shared {
+                sd: SoftDevice::new(),
+            },
             Local { led1, led2 },
             init::Monotonics(mono_clock),
         )
@@ -91,17 +96,21 @@ mod app {
 
     #[idle]
     fn idle(_: idle::Context) -> ! {
-        /* Initialize SoftDevice here, as interrupts are enabled so we
-         * can use SVC.
-         */
-        soft_device::init();
         loop {
             continue;
         }
     }
 
-    #[task(binds = SWI2_EGU2)]
-    fn softdev_event_notify(_: softdev_event_notify::Context) {
-        soft_device::handle_evt_notify();
+    #[task(shared = [sd])]
+    fn init_soft_device(mut ctx: init_soft_device::Context) {
+        /* Initialize SoftDevice here, as interrupts are enabled so we
+         * can use SVC.
+         */
+        ctx.shared.sd.lock(|sd| sd.init());
+    }
+
+    #[task(binds = SWI2_EGU2, shared = [sd])]
+    fn softdev_event_notify(mut ctx: softdev_event_notify::Context) {
+        ctx.shared.sd.lock(|sd| sd.handle_evt_notify());
     }
 }
