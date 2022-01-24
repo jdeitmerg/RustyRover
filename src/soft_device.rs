@@ -59,10 +59,11 @@ pub struct SoftDevice {
     base_uuid_type: u8,
     rover_service_handle: u16,
     charac_handle: sd::ble_gatts_char_handles_t,
+    update_cb: fn(),
 }
 
 impl SoftDevice {
-    pub const fn new() -> SoftDevice {
+    pub fn new(value_update_cb: fn()) -> SoftDevice {
         SoftDevice {
             base_uuid_type: 0xff,
             rover_service_handle: 0x0000,
@@ -73,6 +74,7 @@ impl SoftDevice {
                 cccd_handle: 0,
                 sccd_handle: 0,
             },
+            update_cb: value_update_cb,
         }
     }
 
@@ -250,15 +252,15 @@ impl SoftDevice {
             p_sccd_md: core::ptr::null(),
         };
 
-        let mut val = [12u8, 0u8, 1u8];
+        let mut io_val = 0u8;
 
         let charac_value = sd::ble_gatts_attr_t {
             p_uuid: &uuid,
             p_attr_md: &attr_md,
-            init_len: 3,
+            init_len: 1,
             init_offs: 0,
-            max_len: 3,
-            p_value: &mut val[0],
+            max_len: 1,
+            p_value: &mut io_val,
         };
 
         if unsafe {
@@ -494,7 +496,8 @@ impl SoftDevice {
                 defmt::error!("GATTS event: Response timeout.")
             }
             sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_WRITE => {
-                defmt::debug!("GATTS event: Write operation performed.")
+                defmt::debug!("GATTS event: Write operation performed.");
+                (self.update_cb)();
             }
             _ => defmt::error!("GATTS event: Invalid event ID: {}!", evt_id),
         }
@@ -504,5 +507,24 @@ impl SoftDevice {
             "GATTC event handling not implemented! Ignoring ID: {}",
             evt_id
         );
+    }
+
+    pub fn get_io(&self) -> Option<u8> {
+        let mut val = 0u8;
+
+        let mut gatts_val = sd::ble_gatts_value_t {
+            len: 1,
+            offset: 0,
+            p_value: &mut val,
+        };
+
+        if unsafe { sd::sd_ble_gatts_value_get(0, self.charac_handle.value_handle, &mut gatts_val) }
+            != sd::NRF_SUCCESS
+        {
+            defmt::error!("sd_ble_gatts_value_get() failed!");
+            None
+        } else {
+            Some(val)
+        }
     }
 }
