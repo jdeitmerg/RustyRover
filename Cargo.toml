@@ -4,6 +4,7 @@ name = "rusty-rover"
 edition = "2021"
 rust-version = "1.57"
 version = "0.1.0"
+default-run = "rusty-rover"
 
 [lib]
 harness = false

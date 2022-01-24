@@ -133,7 +133,7 @@ impl SoftDevice {
                 return false;
             }
         };
-        defmt::info!("App RAM base address: 0x{:08x}", app_ram_base);
+        defmt::debug!("App RAM base address: 0x{:08x}", app_ram_base);
 
         let mut gap_addr: sd::ble_gap_addr_t = sd::ble_gap_addr_t {
             _bitfield_1: sd::__BindgenBitfieldUnit::default(),
@@ -236,7 +236,7 @@ impl SoftDevice {
 
         let charac_meta = sd::ble_gatts_char_md_t {
             char_props: sd::ble_gatt_char_props_t {
-                _bitfield_1: sd::ble_gatt_char_props_t::new_bitfield_1(0, 1, 1, 1, 0, 0, 1),
+                _bitfield_1: sd::ble_gatt_char_props_t::new_bitfield_1(0, 0, 0, 1, 0, 0, 0),
             },
             char_ext_props: sd::ble_gatt_char_ext_props_t {
                 _bitfield_1: sd::ble_gatt_char_ext_props_t::new_bitfield_1(1, 0),
@@ -351,12 +351,6 @@ impl SoftDevice {
         } else {
             defmt::error!("Error starting advertisement!")
         }
-
-        /*
-        loop {
-            continue;
-        }
-        */
 
         true
     }
