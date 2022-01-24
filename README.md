@@ -51,3 +51,10 @@ $ cargo run
 * nrf-softdevice* requires nightly features, which are enabled via
   `rust-toolchain.toml`. Make sure to run `rustup update` inside this folder.
 * Good rtic examples: https://github.com/mciantyre/teensy4-rs/blob/master/examples/rtic_blink.rs
+* The SoftDevice and defmt don't go well together. Using defmt in the
+  event notification interrupt makes the SoftDevice assert, possibly because
+  it detects some debug-fishiness going on. It definitely doesn't have
+  anything to to with blocking the notification interrupt, as busy-looping
+  for 500ms is no problem. Rerouting the event to another RTIC task works
+  around this issue (see `softdev_event_notify_interrupt` and
+  `softdev_event_notify` in [src/main.rs](src/main.rs))
