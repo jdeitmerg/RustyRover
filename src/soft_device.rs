@@ -2,6 +2,17 @@ use crate as _; // global logger + panicking-behavior + memory layout
 use aligned::{Aligned, A4};
 use nrf_softdevice_s112 as sd;
 
+static BASE_UUID: sd::ble_uuid128_t = sd::ble_uuid128_t {
+    uuid128: [
+        // 2 bytes set via ble_uuid_t.uuid (were 0x66, 0xf3)--------------------.-----.
+        //                                                                      v     v
+        0x69, 0x8c, 0x71, 0xe1, 0xe7, 0x50, 0x4a, 0x2e, 0xae, 0x89, 0x65, 0x00, 0x00, 0x00, 0x15,
+        0x7f,
+    ],
+};
+static ROVER_SERVICE_UUID: u16 = 0x0001;
+static ROVER_CHARAC_UUID: u16 = 0x0002;
+
 #[rustfmt::skip]
 static mut ADV_DATA: [u8; 10] = [
     2, 0x01, 0x06, // flags: 0b00000110 (LE General Discoverable Mode, BR/EDR not supported)
@@ -32,6 +43,8 @@ static mut CONN_SEC_MODE: sd::ble_gap_conn_sec_mode_t = unsafe {
     }
 };
 
+static CHARAC_DESC: [u8; 8] = [b'r', b'o', b'v', b'e', b'r', b'-', b'i', b'o'];
+
 #[no_mangle]
 extern "C" fn nrf_fault_handler(id: u32, pc: u32, info: u32) {
     defmt::error!(
@@ -42,11 +55,25 @@ extern "C" fn nrf_fault_handler(id: u32, pc: u32, info: u32) {
     );
 }
 
-pub struct SoftDevice {}
+pub struct SoftDevice {
+    base_uuid_type: u8,
+    rover_service_handle: u16,
+    charac_handle: sd::ble_gatts_char_handles_t,
+}
 
 impl SoftDevice {
-    pub fn new() -> SoftDevice {
-        SoftDevice {}
+    pub const fn new() -> SoftDevice {
+        SoftDevice {
+            base_uuid_type: 0xff,
+            rover_service_handle: 0x0000,
+            // Will be written during sd_ble_gatts_characteristic_add()
+            charac_handle: sd::ble_gatts_char_handles_t {
+                value_handle: 0,
+                user_desc_handle: 0,
+                cccd_handle: 0,
+                sccd_handle: 0,
+            },
+        }
     }
 
     pub fn init(&mut self) -> bool {
@@ -66,16 +93,43 @@ impl SoftDevice {
         match retval {
             sd::NRF_SUCCESS => defmt::debug!("SoftDevice enabled successfully!"),
             _ => {
-                defmt::error!("Failed to eanble SoftDevice!");
+                defmt::error!("Failed to enable SoftDevice!");
                 return false;
             }
         };
 
         let mut app_ram_base: u32 = 0x20000000 + 0x1AE0;
+
+        /*
+        let mtu_config = sd::ble_cfg_t {
+            conn_cfg: sd::ble_conn_cfg_t {
+                conn_cfg_tag: 1,
+                params: sd::ble_conn_cfg_t__bindgen_ty_1 {
+                    gatt_conn_cfg: sd::ble_gatt_conn_cfg_t { att_mtu: 128 },
+                },
+            },
+        };
+
+        if unsafe {
+            sd::sd_ble_cfg_set(
+                sd::BLE_CONN_CFGS_BLE_CONN_CFG_GAP,
+                &mtu_config,
+                app_ram_base,
+            )
+        } != sd::NRF_SUCCESS
+        {
+            defmt::error!("sd_ble_cfg_set() failed!");
+            return false;
+        }
+        */
+
         match unsafe { sd::sd_ble_enable(&mut app_ram_base) } {
             sd::NRF_SUCCESS => defmt::debug!("BLE stack enabled successfully!"),
             _ => {
-                defmt::error!("Failed to enable BLE stack!");
+                defmt::error!(
+                    "Failed to enable BLE stack! app_ram_base: {:08x}",
+                    app_ram_base
+                );
                 return false;
             }
         };
@@ -137,6 +191,89 @@ impl SoftDevice {
             _bitfield_1: sd::ble_gap_adv_params_t::new_bitfield_1(0, 1),
         };
 
+        if unsafe { sd::sd_ble_uuid_vs_add(&BASE_UUID, &mut self.base_uuid_type) }
+            != sd::NRF_SUCCESS
+        {
+            defmt::error!("sd_ble_uuid_vs_add() failed!");
+            return false;
+        }
+
+        let uuid = sd::ble_uuid_t {
+            type_: self.base_uuid_type,
+            uuid: ROVER_SERVICE_UUID,
+        };
+
+        if unsafe {
+            sd::sd_ble_gatts_service_add(
+                sd::BLE_GATTS_SRVC_TYPE_PRIMARY as u8,
+                &uuid,
+                &mut self.rover_service_handle,
+            )
+        } != sd::NRF_SUCCESS
+        {
+            defmt::error!("sd_ble_uuid_vs_add() failed!");
+            return false;
+        }
+
+        let uuid = sd::ble_uuid_t {
+            type_: self.base_uuid_type,
+            uuid: ROVER_CHARAC_UUID,
+        };
+        let attr_md = sd::ble_gatts_attr_md_t {
+            read_perm: sd::ble_gap_conn_sec_mode_t {
+                _bitfield_1: sd::ble_gap_conn_sec_mode_t::new_bitfield_1(1, 1),
+            },
+            write_perm: sd::ble_gap_conn_sec_mode_t {
+                _bitfield_1: sd::ble_gap_conn_sec_mode_t::new_bitfield_1(1, 1),
+            },
+            _bitfield_1: sd::ble_gatts_attr_md_t::new_bitfield_1(
+                0,
+                sd::BLE_GATTS_VLOC_STACK as u8,
+                0,
+                0,
+            ),
+        };
+
+        let charac_meta = sd::ble_gatts_char_md_t {
+            char_props: sd::ble_gatt_char_props_t {
+                _bitfield_1: sd::ble_gatt_char_props_t::new_bitfield_1(0, 1, 1, 1, 0, 0, 1),
+            },
+            char_ext_props: sd::ble_gatt_char_ext_props_t {
+                _bitfield_1: sd::ble_gatt_char_ext_props_t::new_bitfield_1(1, 0),
+            },
+            p_char_user_desc: &CHARAC_DESC[0],
+            char_user_desc_max_size: CHARAC_DESC.len() as u16,
+            char_user_desc_size: CHARAC_DESC.len() as u16,
+            p_char_pf: core::ptr::null(),
+            p_user_desc_md: core::ptr::null(),
+            p_cccd_md: core::ptr::null(),
+            p_sccd_md: core::ptr::null(),
+        };
+
+        let mut val = [12u8, 0u8, 1u8];
+
+        let charac_value = sd::ble_gatts_attr_t {
+            p_uuid: &uuid,
+            p_attr_md: &attr_md,
+            init_len: 3,
+            init_offs: 0,
+            max_len: 3,
+            p_value: &mut val[0],
+        };
+
+        if unsafe {
+            sd::sd_ble_gatts_characteristic_add(
+                self.rover_service_handle,
+                &charac_meta,
+                &charac_value,
+                &mut self.charac_handle,
+            )
+        } != sd::NRF_SUCCESS
+        {
+            defmt::error!("Failed to add characteristic!");
+            return false;
+        }
+
         let mut config_ok = false;
         match unsafe {
             let adv_data_handle: sd::ble_gap_adv_data_t = sd::ble_gap_adv_data_t {
@@ -149,6 +286,14 @@ impl SoftDevice {
                     len: SCAN_RESP.len() as u16,
                 },
             };
+            defmt::debug!(
+                "adv buffer:       0x{:08x}",
+                adv_data_handle.adv_data.p_data as u32
+            );
+            defmt::debug!(
+                "scan resp buffer: 0x{:08x}",
+                adv_data_handle.scan_rsp_data.p_data as u32
+            );
             sd::sd_ble_gap_adv_set_configure(&mut adv_handle, &adv_data_handle, &adv_params)
         } {
             sd::NRF_SUCCESS => {
@@ -199,10 +344,19 @@ impl SoftDevice {
             return false;
         }
 
-        match unsafe { sd::sd_ble_gap_adv_start(adv_handle, sd::BLE_CONN_CFG_TAG_DEFAULT as u8) } {
-            sd::NRF_SUCCESS => defmt::debug!("Advertisement started successfully!"),
-            _ => defmt::error!("Error starting advertisement!"),
+        if unsafe { sd::sd_ble_gap_adv_start(adv_handle, sd::BLE_CONN_CFG_TAG_DEFAULT as u8) }
+            == sd::NRF_SUCCESS
+        {
+            defmt::debug!("Advertisement started successfully!")
+        } else {
+            defmt::error!("Error starting advertisement!")
         }
+
+        /*
+        loop {
+            continue;
+        }
+        */
 
         true
     }
@@ -276,7 +430,7 @@ impl SoftDevice {
             _ => defmt::error!("Common event: Invalid event ID: {}!", evt_id),
         }
     }
-    fn handle_gap_evt(&self, evt_id: u32, _evt: &sd::ble_gap_evt_t) {
+    fn handle_gap_evt(&self, evt_id: u32, evt: &sd::ble_gap_evt_t) {
         match evt_id {
             sd::BLE_GAP_EVTS_BLE_GAP_EVT_ADV_SET_TERMINATED => {
                 defmt::debug!("GAP event: Advertising set terminated.")
