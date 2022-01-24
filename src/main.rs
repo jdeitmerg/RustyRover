@@ -109,8 +109,23 @@ mod app {
         ctx.shared.sd.lock(|sd| sd.init());
     }
 
-    #[task(binds = SWI2_EGU2, shared = [sd])]
+    /* We need two tasks for handling SoftDevice events:
+     * One is the actual interrupt handler triggered by the SoftDevice. The
+     * other is our own task run at our own priority (currently don't care).
+     * This is necessary, as otherwise the SoftDevice asserts when
+     *   * GATTS writes are performed from the central to us AND
+     *   * we use defmt logging inside the event notify handler
+     * This might just be a workaround hiding the real problem, as the real
+     * problem is hard to understand (SoftDevice assert with and address
+     * and nothing more).
+     */
+    #[task(shared = [sd])]
     fn softdev_event_notify(mut ctx: softdev_event_notify::Context) {
         ctx.shared.sd.lock(|sd| sd.handle_evt_notify());
+    }
+
+    #[task(binds = SWI2_EGU2)]
+    fn softdev_event_notify_interrupt(_ctx: softdev_event_notify_interrupt::Context) {
+        softdev_event_notify::spawn().unwrap();
     }
 }
