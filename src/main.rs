@@ -37,6 +37,7 @@ mod app {
     #[shared]
     struct Shared {
         sd: SoftDevice,
+        blink_freq: u8, // f = (blink_freq + 1)*.5Hz
     }
     #[local]
     struct Local {
@@ -54,11 +55,6 @@ mod app {
         let systick = cx.core.SYST;
         let mono_clock = DwtSystick::new(&mut dcb, dwt, systick, F_CPU_HZ);
 
-        /*
-        let core_p = cortex_m::Peripherals::take().unwrap();
-        let p = hal::pac::Peripherals::take().unwrap();
-        let mut delay_tim = hal::delay::Delay::new(core_p.SYST);
-        */
         let port0 = hal::gpio::p0::Parts::new(cx.device.P0);
         let led1 = port0.p0_17.into_push_pull_output(Level::Low);
         let led2 = port0.p0_19.into_push_pull_output(Level::Low);
@@ -76,22 +72,26 @@ mod app {
         (
             Shared {
                 sd: SoftDevice::new(|io_val| value_update_handler::spawn(io_val).unwrap()),
+                blink_freq: 0,
             },
             Local { led1, led2 },
             init::Monotonics(mono_clock),
         )
     }
 
-    #[task(local = [led1, led2])]
-    fn blink(cx: blink::Context) {
-        if cx.local.led1.is_set_high().unwrap() {
-            cx.local.led1.set_low().unwrap();
-            cx.local.led2.set_high().unwrap();
+    #[task(local = [led1, led2], shared = [blink_freq])]
+    fn blink(mut ctx: blink::Context) {
+        if ctx.local.led1.is_set_high().unwrap() {
+            ctx.local.led1.set_low().unwrap();
+            ctx.local.led2.set_high().unwrap();
         } else {
-            cx.local.led1.set_high().unwrap();
-            cx.local.led2.set_low().unwrap();
+            ctx.local.led1.set_high().unwrap();
+            ctx.local.led2.set_low().unwrap();
         }
-        blink::spawn_after(500u32.millis()).unwrap();
+        let mut blink_freq = 0u32;
+        ctx.shared.blink_freq.lock(|freq| blink_freq = *freq as u32);
+        let delay_ms = (1000u32 / (blink_freq + 1)).millis();
+        blink::spawn_after(delay_ms).unwrap();
     }
 
     #[idle]
@@ -109,13 +109,14 @@ mod app {
         ctx.shared.sd.lock(|sd| sd.init());
     }
 
-    #[task]
-    fn value_update_handler(_ctx: value_update_handler::Context, io_val: u8) {
+    #[task(shared = [blink_freq])]
+    fn value_update_handler(mut ctx: value_update_handler::Context, io_val: u8) {
         /* This task is spawned "deep" within SoftDevice::handle_evt_notify()
          * as that it what we handed to SoftDevice::new() in app::init()
          * above.
          */
         defmt::info!("New value received via BLE: 0x{:02x}", io_val);
+        ctx.shared.blink_freq.lock(|freq| *freq = io_val);
     }
 
     /* We need two tasks for handling SoftDevice events:
