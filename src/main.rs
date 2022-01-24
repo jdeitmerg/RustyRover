@@ -75,7 +75,7 @@ mod app {
 
         (
             Shared {
-                sd: SoftDevice::new(|| value_update_handler::spawn().unwrap()),
+                sd: SoftDevice::new(|io_val| value_update_handler::spawn(io_val).unwrap()),
             },
             Local { led1, led2 },
             init::Monotonics(mono_clock),
@@ -109,15 +109,13 @@ mod app {
         ctx.shared.sd.lock(|sd| sd.init());
     }
 
-    #[task(shared = [sd])]
-    fn value_update_handler(mut ctx: value_update_handler::Context) {
+    #[task]
+    fn value_update_handler(_ctx: value_update_handler::Context, io_val: u8) {
         /* This task is spawned "deep" within SoftDevice::handle_evt_notify()
          * as that it what we handed to SoftDevice::new() in app::init()
          * above.
          */
-        let mut val = 0u8;
-        ctx.shared.sd.lock(|sd| val = sd.get_io().unwrap());
-        defmt::info!("New value received via BLE: 0x{:02x}", val);
+        defmt::info!("New value received via BLE: 0x{:02x}", io_val);
     }
 
     /* We need two tasks for handling SoftDevice events:

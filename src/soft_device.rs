@@ -59,11 +59,11 @@ pub struct SoftDevice {
     base_uuid_type: u8,
     rover_service_handle: u16,
     charac_handle: sd::ble_gatts_char_handles_t,
-    update_cb: fn(),
+    update_cb: fn(u8),
 }
 
 impl SoftDevice {
-    pub fn new(value_update_cb: fn()) -> SoftDevice {
+    pub fn new(value_update_cb: fn(u8)) -> SoftDevice {
         SoftDevice {
             base_uuid_type: 0xff,
             rover_service_handle: 0x0000,
@@ -497,7 +497,8 @@ impl SoftDevice {
             }
             sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_WRITE => {
                 defmt::debug!("GATTS event: Write operation performed.");
-                (self.update_cb)();
+                let val = self.get_io().unwrap();
+                (self.update_cb)(val);
             }
             _ => defmt::error!("GATTS event: Invalid event ID: {}!", evt_id),
         }
