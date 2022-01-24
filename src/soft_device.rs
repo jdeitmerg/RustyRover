@@ -430,7 +430,7 @@ impl SoftDevice {
             _ => defmt::error!("Common event: Invalid event ID: {}!", evt_id),
         }
     }
-    fn handle_gap_evt(&self, evt_id: u32, evt: &sd::ble_gap_evt_t) {
+    fn handle_gap_evt(&self, evt_id: u32, _evt: &sd::ble_gap_evt_t) {
         match evt_id {
             sd::BLE_GAP_EVTS_BLE_GAP_EVT_ADV_SET_TERMINATED => {
                 defmt::debug!("GAP event: Advertising set terminated.")
