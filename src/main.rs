@@ -43,6 +43,9 @@ mod app {
     struct Local {
         led1: p0::P0_17<Output<PushPull>>,
         led2: p0::P0_19<Output<PushPull>>,
+        pwm: hal::pwm::Pwm<hal::pac::PWM0>,
+        motor_r_dir: Pin<Output<PushPull>>,
+        motor_l_dir: Pin<Output<PushPull>>,
     }
 
     #[init]
@@ -69,12 +72,43 @@ mod app {
 
         blink::spawn_after(500u32.millis()).unwrap();
 
+        let mut motors_stby = port0.p0_02.into_push_pull_output(Level::Low);
+        let mut motors_r_dir = port0.p0_03.into_push_pull_output(Level::Low).degrade();
+        let mut motors_l_dir = port0.p0_04.into_push_pull_output(Level::Low).degrade();
+        let mut motors_r_pwm = port0.p0_05.into_push_pull_output(Level::Low).degrade();
+        let mut motors_l_pwm = port0.p0_28.into_push_pull_output(Level::Low).degrade();
+
+        motors_stby.set_high().unwrap();
+        motors_r_dir.set_high().unwrap();
+        motors_l_dir.set_high().unwrap();
+        motors_r_pwm.set_high().unwrap();
+        motors_l_pwm.set_high().unwrap();
+
+        let pwm = hal::pwm::Pwm::new(cx.device.PWM0);
+        pwm.set_period(2000u32.hz())
+            .set_output_pin(hal::pwm::Channel::C0, motors_r_pwm)
+            .set_output_pin(hal::pwm::Channel::C1, motors_l_pwm);
+
+        let (ch0, ch1, _, _) = pwm.split_channels();
+        ch0.set_duty_off(0);
+        ch1.set_duty_off(0);
+
+        pwm.enable();
+
         (
             Shared {
-                sd: SoftDevice::new(|io_val| value_update_handler::spawn(io_val).unwrap()),
+                sd: SoftDevice::new(|speed_r, speed_l| {
+                    value_update_handler::spawn(speed_r, speed_l).unwrap()
+                }),
                 blink_freq: 0,
             },
-            Local { led1, led2 },
+            Local {
+                led1,
+                led2,
+                pwm,
+                motor_r_dir: motors_r_dir,
+                motor_l_dir: motors_l_dir,
+            },
             init::Monotonics(mono_clock),
         )
     }
@@ -109,14 +143,34 @@ mod app {
         ctx.shared.sd.lock(|sd| sd.init());
     }
 
-    #[task(shared = [blink_freq])]
-    fn value_update_handler(mut ctx: value_update_handler::Context, io_val: u8) {
+    #[task(local = [pwm, motor_r_dir, motor_l_dir])]
+    fn value_update_handler(ctx: value_update_handler::Context, speed_r: i8, speed_l: i8) {
         /* This task is spawned "deep" within SoftDevice::handle_evt_notify()
          * as that it what we handed to SoftDevice::new() in app::init()
          * above.
          */
-        defmt::info!("New value received via BLE: 0x{:02x}", io_val);
-        ctx.shared.blink_freq.lock(|freq| *freq = io_val);
+        defmt::info!("New speed value received via BLE: {} {}", speed_r, speed_l);
+        let max_duty: u32 = ctx.local.pwm.max_duty().try_into().unwrap();
+        let (ch0, ch1, _, _) = ctx.local.pwm.split_channels();
+        if speed_r > 0 {
+            ctx.local.motor_r_dir.set_high().unwrap();
+        } else {
+            ctx.local.motor_r_dir.set_low().unwrap();
+        }
+        if speed_l > 0 {
+            ctx.local.motor_l_dir.set_high().unwrap();
+        } else {
+            ctx.local.motor_l_dir.set_low().unwrap();
+        }
+
+        let speed_r_abs: u32 = speed_r.abs().try_into().unwrap();
+        let speed_l_abs: u32 = speed_l.abs().try_into().unwrap();
+
+        let duty0: u16 = (max_duty * speed_r_abs / 128).try_into().unwrap();
+        let duty1: u16 = (max_duty * speed_l_abs / 128).try_into().unwrap();
+
+        ch0.set_duty_off(duty0);
+        ch1.set_duty_off(duty1);
     }
 
     /* We need two tasks for handling SoftDevice events:

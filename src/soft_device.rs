@@ -59,11 +59,11 @@ pub struct SoftDevice {
     base_uuid_type: u8,
     rover_service_handle: u16,
     charac_handle: sd::ble_gatts_char_handles_t,
-    update_cb: fn(u8),
+    speed_update_cb: fn(i8, i8),
 }
 
 impl SoftDevice {
-    pub fn new(value_update_cb: fn(u8)) -> SoftDevice {
+    pub fn new(speed_update_cb: fn(i8, i8)) -> SoftDevice {
         SoftDevice {
             base_uuid_type: 0xff,
             rover_service_handle: 0x0000,
@@ -74,7 +74,7 @@ impl SoftDevice {
                 cccd_handle: 0,
                 sccd_handle: 0,
             },
-            update_cb: value_update_cb,
+            speed_update_cb: speed_update_cb,
         }
     }
 
@@ -252,15 +252,16 @@ impl SoftDevice {
             p_sccd_md: core::ptr::null(),
         };
 
-        let mut io_val = 0u8;
+        let mut val = [0i8, 0i8];
+        let buf = &mut val[0] as *mut i8 as *mut u8;
 
         let charac_value = sd::ble_gatts_attr_t {
             p_uuid: &uuid,
             p_attr_md: &attr_md,
-            init_len: 1,
+            init_len: 2,
             init_offs: 0,
-            max_len: 1,
-            p_value: &mut io_val,
+            max_len: 2,
+            p_value: buf,
         };
 
         if unsafe {
@@ -497,8 +498,8 @@ impl SoftDevice {
             }
             sd::BLE_GATTS_EVTS_BLE_GATTS_EVT_WRITE => {
                 defmt::debug!("GATTS event: Write operation performed.");
-                let val = self.get_io().unwrap();
-                (self.update_cb)(val);
+                let (speed_r, speed_l) = self.get_speed().unwrap();
+                (self.speed_update_cb)(speed_r, speed_l);
             }
             _ => defmt::error!("GATTS event: Invalid event ID: {}!", evt_id),
         }
@@ -510,13 +511,14 @@ impl SoftDevice {
         );
     }
 
-    pub fn get_io(&self) -> Option<u8> {
-        let mut val = 0u8;
+    pub fn get_speed(&self) -> Option<(i8, i8)> {
+        let mut val = [0i8, 0i8];
+        let buf = &mut val[0] as *mut i8 as *mut u8;
 
         let mut gatts_val = sd::ble_gatts_value_t {
-            len: 1,
+            len: 2,
             offset: 0,
-            p_value: &mut val,
+            p_value: buf,
         };
 
         if unsafe { sd::sd_ble_gatts_value_get(0, self.charac_handle.value_handle, &mut gatts_val) }
@@ -525,7 +527,7 @@ impl SoftDevice {
             defmt::error!("sd_ble_gatts_value_get() failed!");
             None
         } else {
-            Some(val)
+            Some((val[0], val[1]))
         }
     }
 }
